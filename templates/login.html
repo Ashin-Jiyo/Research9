@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Language Chat Login</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #f2f4f8; margin: 0; }
+      main { max-width: 420px; margin: 80px auto; padding: 32px; background: #ffffff; border-radius: 12px; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.1); }
+      h1 { margin-top: 0; }
+      label { display: block; margin-top: 16px; font-weight: bold; }
+      input { width: 100%; padding: 10px; margin-top: 8px; border-radius: 6px; border: 1px solid #ccd2dc; font-size: 16px; }
+  button { margin-top: 24px; width: 100%; padding: 12px; background: #1b6ef3; color: #ffffff; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
+  button:hover { background: #1252b6; }
+  small { display: block; margin-top: 6px; color: #4a5568; }
+  .error { margin-top: 16px; color: #d82727; }
+  p.hint { color: #4a5568; margin-top: 12px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Sign in to Chat</h1>
+    <p class="hint">Pick any username you like. If it already exists you can leave the language blank to keep the previous choice.</p>
+      {% if error %}
+        <p class="error">{{ error }}</p>
+      {% endif %}
+      <form method="post">
+        <label for="username">Username</label>
+        <input id="username" name="username" placeholder="e.g. user1" value="{{ username_value }}" required>
+
+    <label for="language">Preferred language</label>
+    <input id="language" name="language" placeholder="e.g. English" value="{{ language_value }}">
+    <small>New users must set this. Returning users can leave it empty to reuse their saved language.</small>
+
+        <button type="submit">Enter chat</button>
+      </form>
+    </main>
+  </body>
+</html>

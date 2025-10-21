@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Chat with {{ partner['display_name'] }}</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #eef2f7; margin: 0; }
+      main { max-width: 760px; margin: 40px auto; padding: 28px; background: #ffffff; border-radius: 12px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08); }
+      header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; align-items: baseline; }
+      h1 { margin: 0; font-size: 28px; }
+  nav a { margin-left: 12px; text-decoration: none; color: #1b6ef3; border: 1px solid #1b6ef3; padding: 8px 14px; border-radius: 6px; }
+  nav a:first-child { margin-left: 0; }
+  nav a:hover { background: #1b6ef3; color: #ffffff; }
+  nav a.logout { border-color: #d94c4c; color: #d94c4c; }
+  nav a.logout:hover { background: #d94c4c; color: #ffffff; }
+      .language-note { color: #4a5568; margin: 4px 0 0; }
+      .error { color: #d82727; margin-top: 16px; }
+      section.messages { margin: 28px 0; }
+      article.message { border: 1px solid #c9d3e0; border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; background: #f7faff; }
+      article.message.them { background: #f5fff5; border-color: #b7d9b7; }
+      article h2 { margin: 0 0 8px; font-size: 18px; }
+      article p { margin: 0; line-height: 1.5; }
+      article .secondary { margin-top: 8px; font-size: 14px; color: #435061; }
+      article .secondary span { font-weight: bold; display: block; }
+      form textarea { width: 100%; min-height: 110px; padding: 12px; border: 1px solid #cbd5e0; border-radius: 8px; resize: vertical; font-family: inherit; font-size: 16px; }
+      form button { margin-top: 12px; padding: 12px 24px; border: none; background: #1b6ef3; color: #ffffff; font-size: 16px; border-radius: 6px; cursor: pointer; }
+      form button:hover { background: #1558b4; }
+      .status { margin-top: 12px; font-size: 14px; }
+      .status.error { color: #d82727; }
+      .status.success { color: #1f8b4d; }
+    </style>
+  </head>
+  <body>
+  <main id="chat-app" data-fetch-url="{{ fetch_url }}" data-send-url="{{ send_url }}">
+      <header>
+        <div>
+          <h1>Chat with {{ partner['display_name'] }}</h1>
+          <p class="language-note">You read messages in {{ current_user['language'] }}. {{ partner['display_name'] }} reads them in {{ partner['language'] }}.</p>
+        </div>
+        <nav>
+          <a href="{{ url_for('dashboard') }}">Dashboard</a>
+          <a href="{{ url_for('settings') }}">Settings</a>
+          <a class="logout" href="{{ url_for('logout') }}">Back to login</a>
+        </nav>
+      </header>
+      <section class="messages" id="messages" aria-live="polite"></section>
+
+      <form id="message-form">
+        <label for="message">Send a message to {{ partner['display_name'] }}</label>
+        <textarea id="message" name="message" placeholder="Type here..." required></textarea>
+        <button type="submit">Send message</button>
+      </form>
+      <p id="status" class="status" hidden></p>
+    </main>
+
+    <script id="initial-messages" type="application/json">{{ messages|tojson|safe }}</script>
+    <script>
+      const appRoot = document.getElementById('chat-app');
+      const messagesApiUrl = appRoot.dataset.fetchUrl;
+      const sendMessageUrl = appRoot.dataset.sendUrl;
+      const initialMessagesElement = document.getElementById('initial-messages');
+      const initialMessages = initialMessagesElement ? JSON.parse(initialMessagesElement.textContent) : [];
+      if (initialMessagesElement) {
+        initialMessagesElement.remove();
+      }
+
+      const messagesContainer = document.getElementById('messages');
+      const form = document.getElementById('message-form');
+      const textarea = document.getElementById('message');
+      const statusLine = document.getElementById('status');
+
+      function renderMessages(items) {
+        if (!items.length) {
+          messagesContainer.innerHTML = '<p>No messages yet. Say hi below.</p>';
+          return;
+        }
+
+        const html = items.map((item) => {
+          const classes = ['message', item.is_self ? 'you' : 'them'];
+          const secondary = item.secondary_text
+            ? `<p class="secondary"><span>${item.secondary_label}</span>${item.secondary_text}</p>`
+            : '';
+          return `
+            <article class="${classes.join(' ')}">
+              <h2>${item.sender_label}</h2>
+              <p>${item.primary_text}</p>
+              ${secondary}
+            </article>
+          `;
+        }).join('');
+
+        messagesContainer.innerHTML = html;
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+
+      function showStatus(message, type = 'error') {
+        statusLine.textContent = message;
+        statusLine.classList.remove('error', 'success');
+        statusLine.classList.add(type);
+        statusLine.hidden = !message;
+      }
+
+      async function fetchMessages() {
+        try {
+          const response = await fetch(messagesApiUrl, { cache: 'no-store' });
+          if (!response.ok) {
+            throw new Error('Could not refresh messages.');
+          }
+          const payload = await response.json();
+          renderMessages(payload.messages || []);
+        } catch (error) {
+          showStatus(error.message, 'error');
+        }
+      }
+
+      async function sendMessage(message) {
+        const response = await fetch(sendMessageUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message }),
+        });
+
+        const payload = await response.json();
+        if (!response.ok || payload.error) {
+          throw new Error(payload.error || 'Could not send your message.');
+        }
+        return payload.message;
+      }
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const message = textarea.value.trim();
+        if (!message) {
+          showStatus('Type a message before sending.', 'error');
+          return;
+        }
+
+        try {
+          showStatus('Sending…', 'success');
+          await sendMessage(message);
+          textarea.value = '';
+          await fetchMessages();
+          showStatus('Message sent.', 'success');
+          setTimeout(() => showStatus('', 'success'), 1500);
+        } catch (error) {
+          showStatus(error.message, 'error');
+        }
+      });
+
+      renderMessages(initialMessages || []);
+      fetchMessages();
+      setInterval(fetchMessages, 3000);
+    </script>
+  </body>
+</html>

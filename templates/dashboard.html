@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Chat Dashboard</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #eef2f7; margin: 0; }
+      header { background: #1b6ef3; color: #ffffff; padding: 24px; }
+      header h1 { margin: 0 0 4px; }
+      header p { margin: 0; }
+      main { max-width: 860px; margin: 40px auto; padding: 0 24px 48px; }
+      form.search { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px; }
+      form.search input { flex: 1 1 240px; padding: 10px; font-size: 16px; border-radius: 6px; border: 1px solid #cbd5e0; }
+      form.search button { padding: 10px 20px; font-size: 16px; border: none; border-radius: 6px; background: #1b6ef3; color: #ffffff; cursor: pointer; }
+      form.search button:hover { background: #1558b4; }
+      section { margin-top: 32px; }
+      section h2 { margin-bottom: 12px; }
+      ul.contact-list { list-style: none; padding: 0; margin: 0; }
+      ul.contact-list li { background: #ffffff; border: 1px solid #d0d7e0; border-radius: 8px; padding: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+      ul.contact-list li .info span { display: block; font-weight: bold; }
+      ul.contact-list li .info small { color: #4a5568; }
+      ul.contact-list li .actions { display: flex; align-items: center; gap: 10px; }
+      ul.contact-list li a { text-decoration: none; background: #1b6ef3; color: #ffffff; padding: 8px 14px; border-radius: 6px; }
+      ul.contact-list li a:hover { background: #1252b6; }
+      .badge { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; padding: 4px 8px; border-radius: 999px; background: #d94c4c; color: #ffffff; font-size: 13px; font-weight: bold; }
+      .empty { color: #4a5568; }
+      nav.top-links { margin-top: 12px; }
+      nav.top-links a { color: #ffffff; margin-right: 16px; text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Welcome, {{ current_user['display_name'] }}</h1>
+      <p>You will read messages in {{ current_user['language'] }}.</p>
+      <nav class="top-links">
+        <a href="{{ url_for('settings') }}">Change language</a>
+        <a href="{{ url_for('logout') }}">Back to login</a>
+      </nav>
+    </header>
+    <main>
+      <form class="search">
+        <input id="dashboard-query" name="q" placeholder="Search for someone by username" value="{{ query }}">
+        <button type="submit">Search</button>
+      </form>
+
+      <section>
+        <h2>Recent chats</h2>
+        <p id="recent-empty" class="empty" hidden>No conversations yet. Search for someone to start chatting.</p>
+        <ul id="recent-list" class="contact-list"></ul>
+      </section>
+
+      <section>
+        <h2>Search results</h2>
+        <p id="results-empty" class="empty" hidden>No matching users right now. Ask a friend to sign in and try searching again.</p>
+        <ul id="results-list" class="contact-list"></ul>
+      </section>
+    </main>
+
+    <script id="initial-dashboard-data" type="application/json">{{ initial_data|tojson|safe }}</script>
+    <script>
+      const dataUrl = '{{ data_url }}';
+      let currentQuery = '{{ query }}'.trim();
+      const initialDataElement = document.getElementById('initial-dashboard-data');
+      const initialData = initialDataElement ? JSON.parse(initialDataElement.textContent) : { matches: [], recent_contacts: [] };
+      if (initialDataElement) {
+        initialDataElement.remove();
+      }
+
+      const searchForm = document.querySelector('form.search');
+      const searchInput = document.getElementById('dashboard-query');
+      const recentList = document.getElementById('recent-list');
+      const resultsList = document.getElementById('results-list');
+      const recentEmpty = document.getElementById('recent-empty');
+      const resultsEmpty = document.getElementById('results-empty');
+
+      function createContactItem(item) {
+        const unread = item.unread_count || 0;
+        const badge = unread > 0 ? `<span class="badge">${unread}</span>` : '';
+        const url = `{{ url_for('chat', partner='__username__') }}`.replace('__username__', encodeURIComponent(item.username));
+        return `
+          <li>
+            <div class="info">
+              <span>${item.display_name}</span>
+              <small>Prefers ${item.language}</small>
+            </div>
+            <div class="actions">
+              ${badge}
+              <a href="${url}">Chat</a>
+            </div>
+          </li>
+        `;
+      }
+
+      function renderList(container, emptyMessage, items) {
+        if (!items.length) {
+          emptyMessage.hidden = false;
+          container.innerHTML = '';
+          return;
+        }
+        emptyMessage.hidden = true;
+        container.innerHTML = items.map(createContactItem).join('');
+      }
+
+      function renderDashboard(data) {
+        renderList(recentList, recentEmpty, data.recent_contacts || []);
+        renderList(resultsList, resultsEmpty, data.matches || []);
+      }
+
+      async function fetchDashboard() {
+        try {
+          const response = await fetch(`${dataUrl}?q=${encodeURIComponent(currentQuery)}`, { cache: 'no-store' });
+          if (!response.ok) {
+            throw new Error('Unable to refresh dashboard.');
+          }
+          const payload = await response.json();
+          if (!payload.error) {
+            renderDashboard(payload);
+          }
+        } catch (error) {
+          console.warn(error.message);
+        }
+      }
+
+      searchForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        currentQuery = searchInput.value.trim();
+        fetchDashboard();
+      });
+
+      renderDashboard(initialData || { matches: [], recent_contacts: [] });
+      fetchDashboard();
+      setInterval(fetchDashboard, 4000);
+    </script>
+  </body>
+</html>
