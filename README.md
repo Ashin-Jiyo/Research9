@@ -1,6 +1,8 @@
 
 # Overcoming Linguistic Language Barriers with Python and AI
 
+Live Demo at lang.ashin.me
+
 # Setup Instructions
 
 ## Create a Virtual Environment
