@@ -1,7 +1,7 @@
 
 # Overcoming Linguistic Language Barriers with Python and AI
 
-Live Demo at lang.ashin.me
+Live Demo at [https://lang.ashin.me/](here)
 
 # Setup Instructions
 
